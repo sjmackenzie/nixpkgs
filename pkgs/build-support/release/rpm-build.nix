@@ -29,6 +29,8 @@ vmTools.buildRPM (
         fi
       done
 
+      eval "$prePRMInstall"
+
       echo "installing ''${rpms[*]}..."
       rpm -Up ''${rpms[*]} --excludepath /nix/store
 
