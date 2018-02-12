@@ -8,7 +8,7 @@
 
 let buildCrate = { crateName, crateVersion, crateAuthors, buildDependencies,
                    dependencies, completeDeps, completeBuildDeps,
-                   crateFeatures, libName, build, release, libPath,
+                   crateFeatures, libName, build, release, libPath, soname,
                    crateType, metadata, crateBin, finalBins,
                    verbose, colors }:
 
@@ -270,7 +270,7 @@ let buildCrate = { crateName, crateVersion, crateAuthors, buildDependencies,
       runHook postBuild
     '' + finalBins;
 
-    installCrate = crateName: ''
+    installCrate = crateName: soname: ''
       mkdir -p $out
       if [ -s target/env ]; then
         cp target/env $out/env
@@ -282,6 +282,9 @@ let buildCrate = { crateName, crateVersion, crateAuthors, buildDependencies,
       if [ "$(ls -A target/lib)" ]; then
         mkdir -p $out/lib
         cp target/lib/* $out/lib #*/
+        if [[ ! -z $soname ]]; then
+          ln -s $out/lib/*.so $out/lib/lib$soname.so
+        fi
       fi
       if [ "$(ls -A target/build)" ]; then # */
         mkdir -p $out/lib
@@ -298,7 +301,7 @@ crate_: lib.makeOverridable ({ rust, release, verbose, features, buildInputs, cr
 
 let crate = crate_ // (lib.attrByPath [ crate_.crateName ] (attr: {}) crateOverrides crate_);
     processedAttrs = [
-      "src" "buildInputs" "crateBin" "crateLib" "libName" "libPath"
+      "src" "buildInputs" "crateBin" "crateLib" "libName" "libPath" "soname"
       "buildDependencies" "dependencies" "features"
       "crateName" "version" "build" "authors" "colors"
     ];
@@ -337,6 +340,7 @@ stdenv.mkDerivation (rec {
 
     libName = if crate ? libName then crate.libName else crate.crateName;
     libPath = if crate ? libPath then crate.libPath else "";
+    soname = if crate ? soname then crate.soname else "";
 
     metadata = builtins.substring 0 10 (builtins.hashString "sha256" (crateName + "-" + crateVersion));
 
@@ -373,10 +377,10 @@ stdenv.mkDerivation (rec {
     colors = lib.attrByPath [ "colors" ] "always" crate;
     buildPhase = buildCrate {
       inherit crateName dependencies buildDependencies completeDeps completeBuildDeps
-              crateFeatures libName build release libPath crateType crateVersion
+              crateFeatures libName build release libPath soname crateType crateVersion
               crateAuthors metadata crateBin finalBins verbose colors;
     };
-    installPhase = installCrate crateName;
+    installPhase = installCrate crateName soname;
 
 } // extraDerivationAttrs)) {
   rust = rustc;
